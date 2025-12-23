@@ -3,212 +3,86 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Vassala IA - UNEM / ISCAE</title>
-    <!-- Tailwind CSS for styling -->
+    <title>Vassala IA - UNEM ISCAE</title>
+    
+    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Lucide Icons -->
-    <script src="https://unpkg.com/lucide@latest"></script>
+    
+    <!-- Babel for JSX -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <!-- Import Map for Modules -->
+    <script type="importmap">
+    {
+        "imports": {
+            "react": "https://esm.sh/react@18.2.0",
+            "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
+            "lucide-react": "https://esm.sh/lucide-react@0.294.0",
+            "firebase/app": "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js",
+            "firebase/auth": "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js",
+            "firebase/firestore": "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js"
+        }
+    }
+    </script>
+
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Arabic:wght@400;700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap');
         body {
-            font-family: 'Noto Sans Arabic', sans-serif;
+            font-family: 'Cairo', sans-serif;
         }
-        .message-bounce {
-            animation: bounce 0.6s infinite alternate;
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
         }
-        @keyframes bounce {
-            from { transform: translateY(0); }
-            to { transform: translateY(-4px); }
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1; 
         }
-        .recording-pulse {
-            animation: pulse-green 1.5s infinite;
+        ::-webkit-scrollbar-thumb {
+            background: #888; 
+            border-radius: 4px;
         }
-        @keyframes pulse-green {
-            0% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7); }
-            70% { box-shadow: 0 0 0 10px rgba(34, 197, 94, 0); }
-            100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); }
-        }
-        .dev-glow {
-            text-shadow: 0 0 8px rgba(34, 197, 94, 0.6);
-            transition: all 0.3s ease;
-        }
-        .dev-glow:hover {
-            text-shadow: 0 0 15px rgba(34, 197, 94, 1);
-            transform: scale(1.05);
+        ::-webkit-scrollbar-thumb:hover {
+            background: #15803d; 
         }
     </style>
 </head>
-<body class="bg-gray-100 h-screen flex flex-col overflow-hidden text-right">
+<body class="bg-gray-100 h-screen overflow-hidden">
+    <div id="root" class="h-full"></div>
 
-    <!-- Loading Screen -->
-    <div id="loading-screen" class="fixed inset-0 z-50 flex items-center justify-center bg-white text-right">
-        <div class="text-center">
-            <div class="inline-block animate-spin rounded-full h-12 w-12 border-4 border-green-600 border-t-transparent"></div>
-            <p class="mt-4 text-gray-600 font-bold">جاري تحميل Vassala IA...</p>
-        </div>
-    </div>
+    <script type="text/babel" data-type="module">
+        import React, { useState, useEffect, useRef } from 'react';
+        import { createRoot } from 'react-dom/client';
+        import { 
+            getAuth, 
+            signInAnonymously, 
+            onAuthStateChanged,
+            signOut
+        } from 'firebase/auth';
+        import { 
+            getFirestore, 
+            collection, 
+            addDoc, 
+            query, 
+            where, 
+            onSnapshot, 
+            serverTimestamp, 
+            orderBy
+        } from 'firebase/firestore';
+        import { initializeApp } from 'firebase/app';
+        import { 
+            Send, 
+            Mic, 
+            Image as ImageIcon, 
+            LogOut, 
+            Shield, 
+            MessageSquare,
+            Loader2,
+            LayoutDashboard
+        } from 'lucide-react';
 
-    <!-- Login Screen -->
-    <div id="login-screen" class="hidden fixed inset-0 z-40 flex items-center justify-center bg-gray-100 p-4 overflow-y-auto">
-        <div class="w-full max-w-md bg-white rounded-xl shadow-xl border-t-4 border-green-700 p-8 text-center my-auto">
-            <h1 class="text-3xl font-bold text-green-700">Vassala IA</h1>
-            <p class="text-sm font-bold text-green-900 mt-1 uppercase tracking-widest">UNEM / ISCAE</p>
-            <p class="text-xs text-gray-500 mt-4 mb-6 italic">نظام الذكاء الاصطناعي الأكاديمي المتطور</p>
-            
-            <form id="login-form" class="space-y-4 text-right">
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">الإسم الكامل</label>
-                    <input type="text" id="input-name" placeholder="أدخل اسمك الحقيقي" required class="w-full p-2.5 border rounded-lg focus:ring-2 focus:ring-green-500 outline-none text-right">
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">رقم التسجيل (Matricule)</label>
-                    <input type="text" id="input-matricule" placeholder="مثال: I21000" required class="w-full p-2.5 border rounded-lg focus:ring-2 focus:ring-green-500 outline-none uppercase text-right">
-                </div>
-                <div id="admin-code-container" class="hidden bg-yellow-50 p-3 rounded-lg ring-1 ring-yellow-200">
-                    <label class="block text-sm font-medium text-yellow-800 mb-1">رمز تفعيل المشرف</label>
-                    <input type="password" id="input-code" class="w-full p-2.5 border rounded-lg focus:ring-2 focus:ring-yellow-500 outline-none text-right">
-                </div>
-
-                <div class="bg-red-50 border-r-4 border-red-500 p-3 rounded flex gap-2 items-start text-right">
-                    <i data-lucide="alert-triangle" class="w-5 h-5 text-red-600 shrink-0 mt-0.5"></i>
-                    <div>
-                        <p class="text-xs text-red-800 font-bold leading-relaxed">تنبيه هام:</p>
-                        <p class="text-[11px] text-red-700 leading-relaxed">يرجى التأكد من دقة المعلومات المدخلة؛ سيتم ربط حسابك برقمك التسلسلي ولا يمكنك التسجيل مرة أخرى أو تعديل البيانات لاحقاً.</p>
-                    </div>
-                </div>
-
-                <p id="login-error" class="text-red-500 text-xs font-bold hidden"></p>
-                
-                <button type="submit" id="btn-login" class="w-full bg-green-700 text-white py-3 rounded-lg font-bold hover:bg-green-800 transition duration-200 shadow-lg">
-                    تأكيد الدخول
-                </button>
-            </form>
-            <div class="mt-8 pt-4 border-t border-gray-100">
-                <a href="tel:22220479962" class="dev-glow inline-flex flex-col items-center group">
-                    <span class="text-[10px] text-gray-400 font-medium">Developed by</span>
-                    <span class="text-sm font-bold text-green-700">Mohamed Dah Agove</span>
-                </a>
-            </div>
-        </div>
-    </div>
-
-    <!-- Main App Layout -->
-    <div id="app-layout" class="hidden flex flex-col h-full">
-        <!-- Header -->
-        <header class="bg-green-800 text-white p-4 shadow-md flex justify-between items-center shrink-0">
-            <div class="flex items-center gap-3">
-                <div id="user-icon" class="h-10 w-10 bg-white/20 rounded-full flex items-center justify-center">
-                    <i data-lucide="user"></i>
-                </div>
-                <div>
-                    <h2 class="font-bold text-lg leading-none">Vassala IA</h2>
-                    <p class="text-[9px] font-bold opacity-90 mt-0.5">UNEM / ISCAE</p>
-                    <span id="header-user-info" class="text-[10px] opacity-80 block"></span>
-                </div>
-            </div>
-            <button onclick="logout()" class="p-2 bg-white/10 hover:bg-red-500/40 rounded-lg transition">
-                <i data-lucide="log-out" class="w-5 h-5"></i>
-            </button>
-        </header>
-
-        <!-- Admin Tabs -->
-        <div id="admin-tabs" class="hidden flex bg-white border-b shrink-0">
-            <button onclick="switchTab('monitor')" id="tab-monitor" class="flex-1 p-3 font-bold text-green-700 border-b-2 border-green-700 bg-green-50 transition">رقابة الطلاب</button>
-            <button onclick="switchTab('chat')" id="tab-chat" class="flex-1 p-3 font-bold text-gray-500 transition">محادثتي الخاصة</button>
-        </div>
-
-        <!-- Content Area -->
-        <main class="flex-1 overflow-hidden flex flex-col relative bg-gray-50">
-            <!-- Chat View -->
-            <div id="chat-view" class="flex-1 flex flex-col overflow-hidden">
-                <div id="messages-container" class="flex-1 overflow-y-auto p-4 space-y-4 flex flex-col">
-                    <!-- Dynamic Messages -->
-                </div>
-                
-                <div id="chat-placeholder-wrapper" class="absolute inset-0 flex items-center justify-center pointer-events-none">
-                     <div id="chat-placeholder" class="text-center text-gray-400 opacity-60">
-                        <i data-lucide="sparkles" class="w-12 h-12 mx-auto mb-2 text-green-600"></i>
-                        <p>مرحباً بك في Vassala IA (UNEM/ISCAE)<br>يمكنك الكتابة، رفع صورة، أو تسجيل صوتك.</p>
-                    </div>
-                </div>
-
-                <!-- Typing/Status Indicator -->
-                <div id="typing-indicator" class="hidden px-6 py-2">
-                    <div class="bg-white inline-flex items-center gap-2 p-2 rounded-2xl shadow-sm border">
-                        <div class="flex gap-1">
-                            <div class="w-1.5 h-1.5 bg-green-500 rounded-full message-bounce"></div>
-                            <div class="w-1.5 h-1.5 bg-green-500 rounded-full message-bounce [animation-delay:0.2s]"></div>
-                            <div class="w-1.5 h-1.5 bg-green-500 rounded-full message-bounce [animation-delay:0.4s]"></div>
-                        </div>
-                        <span id="status-text" class="text-xs text-gray-500 px-1">جاري التفكير...</span>
-                    </div>
-                </div>
-
-                <!-- Input Area -->
-                <div class="p-4 bg-white border-t space-y-3">
-                    <div id="image-preview-container" class="hidden relative inline-block">
-                        <img id="image-preview" src="" class="h-20 w-20 object-cover rounded-lg border-2 border-green-500 shadow-md">
-                        <button onclick="clearImage()" class="absolute -top-2 -left-2 bg-red-500 text-white rounded-full p-1 shadow-lg">
-                            <i data-lucide="x" class="w-3 h-3"></i>
-                        </button>
-                    </div>
-
-                    <div id="voice-recording-ui" class="hidden bg-green-50 p-3 rounded-xl flex items-center justify-between animate-pulse ring-1 ring-green-200">
-                        <div class="flex items-center gap-3">
-                            <div class="w-3 h-3 bg-green-500 rounded-full recording-pulse"></div>
-                            <span class="text-green-700 font-bold text-sm">جاري تسجيل صوتك...</span>
-                        </div>
-                        <button onclick="stopRecording(true)" class="text-green-600 hover:bg-green-100 p-2 rounded-lg">
-                            <i data-lucide="square" class="w-5 h-5"></i>
-                        </button>
-                    </div>
-
-                    <div class="flex items-end gap-2">
-                        <div class="flex gap-1 mb-1">
-                            <button onclick="document.getElementById('image-input').click()" class="p-2 text-gray-500 hover:bg-gray-100 rounded-full transition">
-                                <i data-lucide="image" class="w-5 h-5"></i>
-                            </button>
-                            <button id="btn-voice" onclick="startRecording()" class="p-2 text-gray-500 hover:bg-gray-100 rounded-full transition">
-                                <i data-lucide="mic" class="w-5 h-5"></i>
-                            </button>
-                        </div>
-
-                        <div class="flex-1 relative">
-                            <textarea id="chat-input" rows="1" placeholder="اسأل Vassala IA..." class="w-full bg-gray-100 rounded-2xl px-4 py-2.5 outline-none focus:ring-1 focus:ring-green-500 transition resize-none text-right"></textarea>
-                        </div>
-
-                        <button id="btn-send" class="bg-green-700 text-white p-3 rounded-full hover:bg-green-800 transition shadow-lg shrink-0">
-                            <i data-lucide="send" class="w-5 h-5"></i>
-                        </button>
-                    </div>
-
-                    <!-- Footer Developer Info inside App -->
-                    <div class="flex justify-center pt-1">
-                        <a href="https://wa.me/22220479962" target="_blank" class="dev-glow text-[10px] text-green-700 font-bold opacity-60 hover:opacity-100 transition-opacity">
-                            Developed by Mohamed Dah Agove
-                        </a>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Monitor View -->
-            <div id="monitor-view" class="hidden flex-1 overflow-y-auto p-4 space-y-3">
-                <div class="flex justify-between items-center mb-2">
-                    <h3 class="font-bold text-gray-700">رقابة المحادثات (UNEM/ISCAE)</h3>
-                    <span id="msg-count-badge" class="bg-green-100 text-green-700 text-xs px-2 py-1 rounded-full font-bold">0 رسالة</span>
-                </div>
-                <div id="monitor-list" class="space-y-3"></div>
-            </div>
-        </main>
-    </div>
-
-    <input type="file" id="image-input" accept="image/*" class="hidden" onchange="handleImageSelect(event)">
-
-    <!-- Firebase SDKs -->
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
-        import { getFirestore, collection, addDoc, query, where, onSnapshot, serverTimestamp, doc, setDoc, orderBy } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+        /**
+         * CONFIGURATION & CONSTANTS
+         */
 
         const firebaseConfig = {
             apiKey: "AIzaSyDKwsjQqRSgC558rbHT0MHEoJtSUk0_8FY",
@@ -220,264 +94,677 @@
             measurementId: "G-T7KP6FFDZ9"
         };
 
-        const GEMINI_API_KEY = "AIzaSyA2fS_xYlzwTqULZIcU5ngkH4Jeu00mxz4";
-        const ADMIN_MATRICULE = "I21567";
-        const ADMIN_CODE = "371915";
-        const APP_ID = 'vassala-ia-prod';
+        const OPENAI_API_KEY = "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";
 
+        const ADMIN_CONFIG = {
+            name: "Mohamed Dah Agove",
+            regNumber: "I21567",
+            code: "371915"
+        };
+
+        // Initialize Firebase
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const db = getFirestore(app);
 
-        let currentUser = null;
-        let appProfile = null;
-        let currentImageData = null;
-        let mediaRecorder = null;
-        let audioChunks = [];
-        let isAppVisible = false;
+        const APP_ID = "unem_iscae_vassala_v1";
 
-        const getEl = (id) => document.getElementById(id);
-
-        signInAnonymously(auth);
-        onAuthStateChanged(auth, user => {
-            if (user) {
-                currentUser = user;
-                checkProfile(user.uid);
+        /**
+         * KNOWLEDGE BASE
+         */
+        const KNOWLEDGE_BASE = [
+            {
+                keywords: ['تخصصات', 'فروع', 'شعب', 'B A', 'FC', 'IG'],
+                response: `التخصصات التي في ISCAE  هي :
+BA
+FC
+IG
+GRH
+TCM`
+            },
+            {
+                keywords: ['أدوار UNEM', 'دور unem', 'ما هو unem', 'يوم التفوق'],
+                response: `يقوم با الدفاع عن مكتسبات الطلاب والمطالبة بحقوقهم المادية والمعنوية ويقوم بجمع وتقسيم لأرشيف على الطلاب و قسم  UNEM ISCAE يقوم ب يوم التفوق الدراسي هو يوم السبت يقوم فيه بمراجعة لصالح الطلاب عن طريق أساتذة و خريجين وطلاب متميزين`
+            },
+            {
+                keywords: ['موقع', 'أين تقع', 'المكان', 'مكان'],
+                response: `ISCAE  بجانب الوزارة لأولى`
+            },
+            {
+                keywords: ['ماستر', 'الماستر', 'دراسات عليا'],
+                response: `يتوفر على تخصصين للماستر هم :
+المالية والمحاسبة 
+المعلوماتية التطبيقية للإدارة`
             }
-        });
+        ];
 
-        async function checkProfile(uid) {
-            const userRef = doc(db, 'artifacts', APP_ID, 'public', 'data', 'users', uid);
-            onSnapshot(userRef, snap => {
-                if (snap.exists()) {
-                    appProfile = snap.data();
-                    showApp();
-                } else {
-                    showLogin();
+        /**
+         * UTILITIES
+         */
+
+        const callOpenAIAPI = async (text, imageBase64 = null) => {
+            const url = "https://api.openai.com/v1/chat/completions";
+            const model = "gpt-4o-mini";
+
+            const messages = [
+                {
+                    role: "system",
+                    content: "أنت Vassala IA، مساعد تعليمي رسمي لـ UNEM ISCAE. أجب باللغة العربية أو الفرنسية حسب لغة السؤال. كن أكاديمياً ومحترماً. إجاباتك يجب أن تكون دقيقة ومفيدة للطلاب."
                 }
-                const ls = getEl('loading-screen');
-                if (ls) ls.classList.add('hidden');
-            });
-        }
+            ];
 
-        function showLogin() {
-            isAppVisible = false;
-            if (getEl('login-screen')) getEl('login-screen').classList.remove('hidden');
-            if (getEl('app-layout')) getEl('app-layout').classList.add('hidden');
-            lucide.createIcons();
-        }
-
-        function showApp() {
-            isAppVisible = true;
-            if (getEl('login-screen')) getEl('login-screen').classList.add('hidden');
-            if (getEl('app-layout')) getEl('app-layout').classList.remove('hidden');
-            
-            if (appProfile) {
-                const headerInfo = getEl('header-user-info');
-                if (headerInfo) headerInfo.innerText = appProfile.name;
-                
-                if (appProfile.role === 'admin') {
-                    if (getEl('admin-tabs')) getEl('admin-tabs').classList.remove('hidden');
-                    const uIcon = getEl('user-icon');
-                    if (uIcon) uIcon.innerHTML = '<i data-lucide="shield"></i>';
-                    switchTab('monitor');
-                } else {
-                    setupChat();
-                }
+            if (imageBase64) {
+                messages.push({
+                    role: "user",
+                    content: [
+                        { type: "text", text: text || "ماذا يوجد في هذه الصورة؟" },
+                        { 
+                            type: "image_url", 
+                            image_url: { 
+                                url: `data:image/jpeg;base64,${imageBase64}`,
+                                detail: "low"
+                            } 
+                        }
+                    ]
+                });
+            } else {
+                messages.push({
+                    role: "user",
+                    content: text
+                });
             }
-            lucide.createIcons();
-        }
 
-        window.handleImageSelect = (e) => {
-            const file = e.target.files[0];
-            if (!file) return;
-            const reader = new FileReader();
-            reader.onload = (event) => {
-                currentImageData = event.target.result.split(',')[1];
-                const prevImg = getEl('image-preview');
-                const prevCont = getEl('image-preview-container');
-                if (prevImg) prevImg.src = event.target.result;
-                if (prevCont) prevCont.classList.remove('hidden');
-            };
-            reader.readAsDataURL(file);
-        };
+            const delays = [1000, 3000];
 
-        window.clearImage = () => {
-            currentImageData = null;
-            if (getEl('image-preview-container')) getEl('image-preview-container').classList.add('hidden');
-            if (getEl('image-input')) getEl('image-input').value = '';
-        };
-
-        window.startRecording = async () => {
-            try {
-                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                mediaRecorder = new MediaRecorder(stream);
-                audioChunks = [];
-                mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
-                mediaRecorder.onstop = () => handleVoicePrompt();
-                mediaRecorder.start();
-                if (getEl('voice-recording-ui')) getEl('voice-recording-ui').classList.remove('hidden');
-            } catch (err) { alert("الميكروفون مطلوب."); }
-        };
-
-        window.stopRecording = () => {
-            if (mediaRecorder) {
-                mediaRecorder.stop();
-                mediaRecorder.stream.getTracks().forEach(t => t.stop());
-            }
-            if (getEl('voice-recording-ui')) getEl('voice-recording-ui').classList.add('hidden');
-        };
-
-        async function handleVoicePrompt() {
-            const input = getEl('chat-input');
-            if (input) input.value = "جاري تحليل السؤال الصوتي...";
-            setTimeout(() => {
-                if (input) input.value = "ما هي التخصصات المتوفرة في ISCAE؟";
-                sendMessage();
-            }, 800);
-        }
-
-        async function sendMessage() {
-            const input = getEl('chat-input');
-            const text = input ? input.value.trim() : "";
-            if (!text && !currentImageData) return;
-
-            const isImage = !!currentImageData;
-            const prompt = text || "حلل الصورة.";
-            if (input) input.value = '';
-            
-            const tempImg = currentImageData;
-            clearImage();
-            
-            const typing = getEl('typing-indicator');
-            const status = getEl('status-text');
-            if (typing) typing.classList.remove('hidden');
-            if (status) status.innerText = isImage ? "تحليل الصورة..." : "جاري التفكير...";
-
-            try {
-                await addDoc(collection(db, 'artifacts', APP_ID, 'public', 'data', 'messages'), {
-                    uid: currentUser.uid,
-                    userName: appProfile.name,
-                    role: 'user',
-                    content: prompt,
-                    hasImage: isImage,
-                    timestamp: serverTimestamp()
-                });
-
-                let payload = isImage ? {
-                    contents: [{ parts: [{ text: prompt + " (أجب بالعربية بصفتك مساعد ISCAE)" }, { inlineData: { mimeType: "image/png", data: tempImg } }] }]
-                } : {
-                    contents: [{ parts: [{ text: prompt }] }],
-                    systemInstruction: { parts: [{ text: "أنت Vassala IA مساعد UNEM/ISCAE." }] }
-                };
-
-                const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${GEMINI_API_KEY}`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
-
-                const data = await res.json();
-                const aiText = data.candidates?.[0]?.content?.parts?.[0]?.text || "خطأ في المعالجة.";
-
-                await addDoc(collection(db, 'artifacts', APP_ID, 'public', 'data', 'messages'), {
-                    uid: currentUser.uid,
-                    userName: 'Vassala IA',
-                    role: 'ai',
-                    content: aiText,
-                    timestamp: serverTimestamp()
-                });
-            } catch (err) { console.error(err); }
-            finally { if (typing) typing.classList.add('hidden'); }
-        }
-
-        const btnS = getEl('btn-send');
-        if (btnS) btnS.onclick = sendMessage;
-        const chatIn = getEl('chat-input');
-        if (chatIn) chatIn.onkeydown = (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } };
-
-        let unsubChat = null;
-        function setupChat() {
-            if (unsubChat) unsubChat();
-            const q = query(collection(db, 'artifacts', APP_ID, 'public', 'data', 'messages'), where("uid", "==", currentUser.uid));
-            unsubChat = onSnapshot(q, snap => {
-                if (!isAppVisible) return;
-                const msgs = snap.docs.map(d => ({id: d.id, ...d.data()})).sort((a,b) => (a.timestamp?.seconds||0) - (b.timestamp?.seconds||0));
-                renderChat(msgs);
-            });
-        }
-
-        function renderChat(msgs) {
-            const container = getEl('messages-container');
-            const placeholder = getEl('chat-placeholder-wrapper');
-            if (!container) return;
-            if (placeholder) placeholder.style.display = msgs.length > 0 ? 'none' : 'flex';
-            
-            container.innerHTML = '';
-            msgs.forEach(m => {
-                const div = document.createElement('div');
-                div.className = `flex ${m.role === 'ai' ? 'justify-start' : 'justify-end'}`;
-                div.innerHTML = `
-                    <div class="max-w-[85%] rounded-2xl p-3 shadow-sm ${m.role === 'ai' ? 'bg-white text-gray-800 border' : 'bg-green-700 text-white'}">
-                        ${m.hasImage ? '<div class="text-[10px] mb-1 opacity-70 flex items-center gap-1"><i data-lucide="image" class="w-3 h-3"></i> صورة</div>' : ''}
-                        <div class="whitespace-pre-wrap text-sm leading-relaxed">${m.content}</div>
-                        <div class="text-[10px] mt-1 opacity-50 text-left">${m.timestamp ? new Date(m.timestamp.seconds*1000).toLocaleTimeString([],{hour:'2-digit', minute:'2-digit'}) : '...'}</div>
-                    </div>
-                `;
-                container.appendChild(div);
-            });
-            container.scrollTop = container.scrollHeight;
-            lucide.createIcons();
-        }
-
-        window.switchTab = (tab) => {
-            if (getEl('chat-view')) getEl('chat-view').classList.toggle('hidden', tab !== 'chat');
-            if (getEl('monitor-view')) getEl('monitor-view').classList.toggle('hidden', tab !== 'monitor');
-            if (tab === 'chat') setupChat(); else setupMonitor();
-            lucide.createIcons();
-        };
-
-        function setupMonitor() {
-            const q = query(collection(db, 'artifacts', APP_ID, 'public', 'data', 'messages'));
-            onSnapshot(q, snap => {
-                if (!isAppVisible) return;
-                const msgs = snap.docs.map(d => ({id: d.id, ...d.data()})).sort((a,b) => (b.timestamp?.seconds||0) - (a.timestamp?.seconds||0));
-                const badge = getEl('msg-count-badge');
-                if (badge) badge.innerText = `${msgs.length} رسالة`;
-                const list = getEl('monitor-list');
-                if (list) {
-                    list.innerHTML = '';
-                    msgs.forEach(m => {
-                        const div = document.createElement('div');
-                        div.className = "bg-white p-3 rounded-xl shadow-sm border-r-4 border-green-700 mb-2";
-                        div.innerHTML = `<div class="flex justify-between items-center mb-1 text-right"><span class="text-xs font-bold text-green-800">${m.userName}</span><span class="text-[9px] text-gray-400">${m.timestamp ? new Date(m.timestamp.seconds*1000).toLocaleString() : ''}</span></div><p class="text-sm text-right">${m.content}</p>`;
-                        list.appendChild(div);
+            for (let i = 0; i <= delays.length; i++) {
+                try {
+                    const response = await fetch(url, {
+                        method: 'POST',
+                        headers: { 
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${OPENAI_API_KEY}`
+                        },
+                        body: JSON.stringify({ 
+                            model: model,
+                            messages: messages,
+                            max_tokens: 500,
+                            temperature: 0.7
+                        })
                     });
+
+                    const data = await response.json();
+                    
+                    if (data.error) {
+                        console.warn("OpenAI API Error:", data.error);
+                        if (data.error.code === 'insufficient_quota' || data.error.type === 'insufficient_quota') {
+                            return "⚠️ عذراً، نفدت حصة الاستخدام الخاصة بمفتاح API هذا. يرجى التحقق من الرصيد.";
+                        }
+                        if (data.error.code === 'invalid_api_key') {
+                           return "⚠️ مفتاح API غير صالح.";
+                        }
+                        throw new Error(data.error.message);
+                    }
+
+                    return data.choices?.[0]?.message?.content || "لم أتمكن من فهم الإجابة.";
+
+                } catch (error) {
+                    console.warn(`Attempt ${i+1} failed:`, error);
+                    if (i === delays.length) {
+                        return "عذراً، حدث خطأ في الاتصال بخدمة الذكاء الاصطناعي.";
+                    }
+                    await new Promise(resolve => setTimeout(resolve, delays[i]));
                 }
-            });
-        }
-
-        const mInput = getEl('input-matricule');
-        if (mInput) mInput.oninput = (e) => {
-            const acc = getEl('admin-code-container');
-            if (acc) acc.classList.toggle('hidden', e.target.value.toUpperCase() !== ADMIN_MATRICULE);
+            }
+            return "حدث خطأ غير متوقع.";
         };
 
-        const lForm = getEl('login-form');
-        if (lForm) lForm.onsubmit = async (e) => {
-            e.preventDefault();
-            const matricule = getEl('input-matricule').value.toUpperCase();
-            const name = getEl('input-name').value;
-            const code = getEl('input-code').value;
-            if (matricule === ADMIN_MATRICULE && code !== ADMIN_CODE) return;
-            const role = matricule === ADMIN_MATRICULE ? 'admin' : 'user';
-            await setDoc(doc(db, 'artifacts', APP_ID, 'public', 'data', 'users', currentUser.uid), {
-                uid: currentUser.uid, name, matricule, role, createdAt: serverTimestamp()
-            });
+        const checkKnowledgeBase = (text) => {
+            const lowerText = text.toLowerCase();
+            for (const item of KNOWLEDGE_BASE) {
+                if (item.keywords.some(k => lowerText.includes(k.toLowerCase()))) {
+                    return item.response;
+                }
+            }
+            return null;
         };
 
-        window.logout = () => window.location.reload();
-        lucide.createIcons();
+        /**
+         * COMPONENTS
+         */
+
+        const Footer = () => (
+            <footer className="w-full bg-green-900 text-white py-4 text-center mt-auto border-t-4 border-green-500 shadow-lg relative overflow-hidden shrink-0">
+                <a 
+                    href="https://wa.me/22220479962" 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="group inline-flex items-center gap-2 cursor-pointer transition-transform hover:scale-105"
+                >
+                    <span className="relative font-bold text-lg tracking-wider animate-pulse text-green-300 group-hover:text-white transition-colors">
+                        Développé par Mohamed Dah Agove
+                        <span className="absolute -inset-1 bg-green-400 opacity-20 blur-lg rounded-lg group-hover:opacity-40 transition-opacity"></span>
+                    </span>
+                </a>
+            </footer>
+        );
+
+        const AuthScreen = ({ onLogin }) => {
+            const [fullName, setFullName] = useState("");
+            const [regNumber, setRegNumber] = useState("");
+            const [adminCode, setAdminCode] = useState("");
+            const [error, setError] = useState("");
+            const [showAdminCode, setShowAdminCode] = useState(false);
+
+            const handleLogin = async (e) => {
+                e.preventDefault();
+                setError("");
+
+                if (!fullName.trim() || !regNumber.trim()) {
+                    setError("الاسم ورقم التسجيل مطلوبان.");
+                    return;
+                }
+
+                if (!regNumber.startsWith("I")) {
+                    setError("يجب أن يبدأ رقم التسجيل بالحرف الكبير I (مثال: I21000).");
+                    return;
+                }
+
+                if (regNumber === ADMIN_CONFIG.regNumber) {
+                    if (!showAdminCode) {
+                        setShowAdminCode(true);
+                        return;
+                    }
+                    if (adminCode !== ADMIN_CONFIG.code) {
+                        setError("رمز التفعيل خاطئ.");
+                        return;
+                    }
+                }
+
+                const role = (regNumber === ADMIN_CONFIG.regNumber && adminCode === ADMIN_CONFIG.code) 
+                    ? "admin" 
+                    : "user";
+
+                try {
+                    const userCredential = await signInAnonymously(auth);
+                    const userData = {
+                        uid: userCredential.user.uid,
+                        fullName,
+                        registrationNumber: regNumber,
+                        role,
+                        lastLogin: new Date().toISOString()
+                    };
+
+                    // Save to local storage for persistence
+                    localStorage.setItem('vassala_user_profile', JSON.stringify(userData));
+
+                    // Save to Firestore
+                    await addDoc(collection(db, 'artifacts', APP_ID, 'public', 'data', 'users'), userData);
+                    
+                    onLogin(userData);
+                } catch (err) {
+                    setError("فشل الاتصال بقاعدة البيانات. تأكد من الإنترنت.");
+                    console.error(err);
+                }
+            };
+
+            return (
+                <div className="min-h-screen bg-gradient-to-br from-green-50 to-green-100 flex flex-col items-center justify-center p-4">
+                    <div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-md border-t-8 border-green-600">
+                        <div className="text-center mb-8">
+                            <h1 className="text-3xl font-extrabold text-green-800 mb-2">Vassala IA</h1>
+                            <h2 className="text-xl text-green-600 font-semibold">UNEM ISCAE</h2>
+                            <p className="text-gray-500 text-sm mt-2">بوابة الطالب الذكية</p>
+                        </div>
+
+                        <form onSubmit={handleLogin} className="space-y-6">
+                            <div>
+                                <label className="block text-gray-700 mb-2 font-bold">الاسم الكامل</label>
+                                <input
+                                    type="text"
+                                    value={fullName}
+                                    onChange={(e) => setFullName(e.target.value)}
+                                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:outline-none transition"
+                                    placeholder="مثال: محمد أحمد"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-gray-700 mb-2 font-bold">رقم التسجيل (Matricule)</label>
+                                <input
+                                    type="text"
+                                    value={regNumber}
+                                    onChange={(e) => setRegNumber(e.target.value.toUpperCase())}
+                                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:outline-none transition"
+                                    placeholder="مثال: I21000"
+                                />
+                            </div>
+
+                            {showAdminCode && (
+                                <div className="animate-in fade-in slide-in-from-top-4 duration-300">
+                                    <label className="block text-red-600 mb-2 font-bold">رمز التفعيل (Admin)</label>
+                                    <input
+                                        type="password"
+                                        value={adminCode}
+                                        onChange={(e) => setAdminCode(e.target.value)}
+                                        className="w-full p-3 border border-red-300 bg-red-50 rounded-lg focus:ring-2 focus:ring-red-500 focus:outline-none transition"
+                                        placeholder="أدخل الرمز السري"
+                                    />
+                                </div>
+                            )}
+
+                            {error && (
+                                <div className="p-3 bg-red-100 text-red-700 rounded-lg text-sm text-center">
+                                    {error}
+                                </div>
+                            )}
+
+                            <div className="bg-blue-50 p-3 rounded text-xs text-blue-700 mb-2 border border-blue-200">
+                                ⚠️ <strong>تنبيه:</strong> يرجى إدخال المعلومات بدقة لأنه سيتم ربط حسابك برقم تسجيلك.
+                            </div>
+
+                            <button
+                                type="submit"
+                                className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-lg shadow-md hover:shadow-lg transition-all transform hover:-translate-y-0.5"
+                            >
+                                {showAdminCode ? "دخول المشرف" : "تسجيل الدخول"}
+                            </button>
+                        </form>
+                    </div>
+                    <div className="mt-8 w-full">
+                         <Footer />
+                    </div>
+                </div>
+            );
+        };
+
+        const AdminDashboard = ({ currentUser, onLogout, onSwitchToChat }) => {
+            const [conversations, setConversations] = useState([]);
+            const [filter, setFilter] = useState("");
+
+            useEffect(() => {
+                const q = query(
+                    collection(db, 'artifacts', APP_ID, 'public', 'data', 'conversations')
+                );
+
+                const unsubscribe = onSnapshot(q, (snapshot) => {
+                    const msgs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                    // Sort locally
+                    msgs.sort((a, b) => {
+                        const tA = a.timestamp?.toMillis ? a.timestamp.toMillis() : (a.timestamp ? new Date(a.timestamp).getTime() : 0);
+                        const tB = b.timestamp?.toMillis ? b.timestamp.toMillis() : (b.timestamp ? new Date(b.timestamp).getTime() : 0);
+                        return tB - tA;
+                    });
+                    setConversations(msgs);
+                });
+                return () => unsubscribe();
+            }, []);
+
+            const filteredData = conversations.filter(c => 
+                c.fullName?.toLowerCase().includes(filter.toLowerCase()) || 
+                c.registrationNumber?.toLowerCase().includes(filter.toLowerCase())
+            );
+
+            return (
+                <div className="flex flex-col h-screen bg-gray-50 rtl">
+                    <header className="bg-green-800 text-white p-4 shadow-md flex justify-between items-center shrink-0">
+                        <div>
+                            <h1 className="text-xl font-bold flex items-center gap-2">
+                                <Shield size={20} />
+                                لوحة تحكم المشرف
+                            </h1>
+                            <p className="text-xs text-green-200">أهلاً، {currentUser.fullName}</p>
+                        </div>
+                        <div className="flex gap-2">
+                           <button onClick={onSwitchToChat} className="bg-blue-600 hover:bg-blue-700 px-3 py-1 rounded text-sm flex items-center gap-1 transition">
+                             <MessageSquare size={16} /> محادثتي
+                           </button>
+                           <button onClick={onLogout} className="bg-red-500 hover:bg-red-600 px-3 py-1 rounded text-sm flex items-center gap-1 transition">
+                             <LogOut size={16} /> خروج
+                           </button>
+                        </div>
+                    </header>
+
+                    <div className="p-4 flex-1 overflow-auto">
+                        <div className="mb-4">
+                            <input 
+                                type="text" 
+                                placeholder="بحث بالاسم أو الرقم..." 
+                                className="w-full p-2 border rounded shadow-sm"
+                                value={filter}
+                                onChange={(e) => setFilter(e.target.value)}
+                            />
+                        </div>
+
+                        <div className="space-y-4">
+                            {filteredData.map((msg) => (
+                                <div key={msg.id} className="bg-white p-4 rounded-lg shadow border-r-4 border-green-500">
+                                    <div className="flex justify-between items-start mb-2 border-b pb-2">
+                                        <div>
+                                            <span className="font-bold text-gray-800">{msg.fullName}</span>
+                                            <span className="text-xs bg-green-100 text-green-800 px-2 py-0.5 rounded mr-2">{msg.registrationNumber}</span>
+                                        </div>
+                                        <span className="text-xs text-gray-500">
+                                            {msg.timestamp?.toDate ? new Date(msg.timestamp.toDate()).toLocaleString('ar-SA') : 'الآن'}
+                                        </span>
+                                    </div>
+                                    
+                                    <div className="mb-2">
+                                        <span className="text-xs font-bold text-blue-600 block mb-1">السؤال:</span>
+                                        <p className="text-gray-800 bg-gray-50 p-2 rounded">{msg.message}</p>
+                                        {msg.imageUrl && (
+                                           <img src={`data:image/jpeg;base64,${msg.imageUrl}`} alt="User upload" className="mt-2 h-20 w-auto rounded border" />
+                                        )}
+                                    </div>
+
+                                    <div className="mt-2">
+                                        <span className="text-xs font-bold text-green-600 block mb-1">إجابة Vassala:</span>
+                                        <p className="text-gray-700 text-sm whitespace-pre-wrap">{msg.response}</p>
+                                    </div>
+                                </div>
+                            ))}
+                            {filteredData.length === 0 && <p className="text-center text-gray-500 mt-10">لا توجد محادثات مطابقة.</p>}
+                        </div>
+                    </div>
+                    <Footer />
+                </div>
+            );
+        };
+
+        const ChatInterface = ({ currentUser, onLogout, isAdmin, onSwitchToDashboard }) => {
+            const [messages, setMessages] = useState([]);
+            const [inputText, setInputText] = useState("");
+            const [isRecording, setIsRecording] = useState(false);
+            const [isLoading, setIsLoading] = useState(false);
+            const messagesEndRef = useRef(null);
+            const fileInputRef = useRef(null);
+
+            const scrollToBottom = () => {
+                messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+            };
+
+            useEffect(() => {
+                scrollToBottom();
+            }, [messages]);
+
+            useEffect(() => {
+                if (!currentUser.uid) return;
+                const q = query(
+                    collection(db, 'artifacts', APP_ID, 'public', 'data', 'conversations'),
+                    where("userId", "==", currentUser.uid)
+                );
+
+                const unsubscribe = onSnapshot(q, (snapshot) => {
+                    const msgs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                    // Sort asc (oldest first)
+                    msgs.sort((a, b) => {
+                        const tA = a.timestamp?.toMillis ? a.timestamp.toMillis() : (a.timestamp ? new Date(a.timestamp).getTime() : 0);
+                        const tB = b.timestamp?.toMillis ? b.timestamp.toMillis() : (b.timestamp ? new Date(b.timestamp).getTime() : 0);
+                        return tA - tB;
+                    });
+                    setMessages(msgs);
+                });
+                return () => unsubscribe();
+            }, [currentUser.uid]);
+
+            const handleSend = async (text = inputText, imageBase64 = null) => {
+                if ((!text.trim() && !imageBase64) || isLoading) return;
+
+                setInputText("");
+                setIsLoading(true);
+
+                let aiResponse = checkKnowledgeBase(text);
+                if (!aiResponse) {
+                    aiResponse = await callOpenAIAPI(text, imageBase64);
+                }
+
+                try {
+                    if (!currentUser.registrationNumber) {
+                        throw new Error("Registration number is missing.");
+                    }
+                    await addDoc(collection(db, 'artifacts', APP_ID, 'public', 'data', 'conversations'), {
+                        userId: currentUser.uid,
+                        fullName: currentUser.fullName,
+                        registrationNumber: currentUser.registrationNumber,
+                        message: text,
+                        imageUrl: imageBase64,
+                        type: imageBase64 ? 'image' : 'text',
+                        response: aiResponse,
+                        timestamp: serverTimestamp()
+                    });
+                } catch (e) {
+                    console.error("Error sending message:", e);
+                } finally {
+                    setIsLoading(false);
+                }
+            };
+
+            const handleImageUpload = (e) => {
+                const file = e.target.files?.[0];
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onloadend = () => {
+                        const base64String = reader.result;
+                        const base64Data = base64String.split(',')[1]; 
+                        handleSend("قام المستخدم برفع صورة:", base64Data);
+                    };
+                    reader.readAsDataURL(file);
+                }
+            };
+
+            const toggleRecording = () => {
+                if (isRecording) {
+                    setIsRecording(false);
+                    return;
+                }
+                const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+                if (SpeechRecognition) {
+                    setIsRecording(true);
+                    const recognition = new SpeechRecognition();
+                    recognition.lang = 'ar-SA';
+                    recognition.continuous = false;
+                    recognition.onresult = (event) => {
+                        const transcript = event.results[0][0].transcript;
+                        setInputText(transcript);
+                    };
+                    recognition.onerror = () => setIsRecording(false);
+                    recognition.onend = () => setIsRecording(false);
+                    recognition.start();
+                } else {
+                    alert("المتصفح لا يدعم التسجيل الصوتي.");
+                }
+            };
+
+            return (
+                <div className="flex flex-col h-screen bg-gray-100 rtl font-sans">
+                    <header className="bg-green-700 text-white p-3 shadow-md flex justify-between items-center z-10 shrink-0">
+                        <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center text-green-700 font-bold border-2 border-green-400">
+                                V
+                            </div>
+                            <div>
+                                <h1 className="font-bold text-lg">Vassala IA</h1>
+                                <p className="text-xs text-green-200 opacity-90">UNEM ISCAE</p>
+                            </div>
+                        </div>
+                        <div className="flex items-center gap-3">
+                            <div className="hidden md:block text-left">
+                                <p className="text-sm font-semibold">{currentUser.fullName}</p>
+                                <p className="text-xs text-green-200">{currentUser.registrationNumber}</p>
+                            </div>
+                            
+                            {isAdmin && onSwitchToDashboard && (
+                                <button onClick={onSwitchToDashboard} className="bg-green-800 p-2 rounded-full hover:bg-green-900 transition flex items-center justify-center" title="لوحة التحكم">
+                                    <LayoutDashboard size={18} />
+                                </button>
+                            )}
+
+                            <button onClick={onLogout} className="bg-green-800 p-2 rounded-full hover:bg-green-900 transition" title="تسجيل الخروج">
+                                <LogOut size={18} />
+                            </button>
+                        </div>
+                    </header>
+
+                    <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-[#e5ddd5]">
+                        <div className="text-center my-4">
+                            <span className="bg-green-100 text-green-800 text-xs px-3 py-1 rounded-full shadow-sm border border-green-200">
+                                مرحباً {currentUser.fullName}. جميع المحادثات مسجلة وآمنة.
+                            </span>
+                        </div>
+
+                        {messages.map((msg) => (
+                            <div key={msg.id} className="flex flex-col gap-2">
+                                <div className="flex justify-start">
+                                    <div className="bg-green-600 text-white p-3 rounded-tl-xl rounded-tr-xl rounded-bl-xl max-w-[85%] shadow-md relative">
+                                        {msg.imageUrl && (
+                                            <img src={`data:image/jpeg;base64,${msg.imageUrl}`} alt="uploaded" className="mb-2 rounded-lg max-h-40 w-auto border border-green-500" />
+                                        )}
+                                        <p className="text-sm leading-relaxed">{msg.message}</p>
+                                        <span className="text-[10px] text-green-200 block text-left mt-1">
+                                            {msg.timestamp?.toDate ? new Date(msg.timestamp.toDate()).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : ''}
+                                        </span>
+                                    </div>
+                                </div>
+                                <div className="flex justify-end">
+                                    <div className="bg-white text-gray-800 p-3 rounded-tl-xl rounded-tr-xl rounded-br-xl max-w-[85%] shadow-md border border-gray-200">
+                                        <div className="flex items-center gap-2 mb-1 border-b pb-1 border-gray-100">
+                                            <div className="w-5 h-5 bg-green-100 rounded-full flex items-center justify-center">
+                                                <span className="text-xs font-bold text-green-700">V</span>
+                                            </div>
+                                            <span className="text-xs font-bold text-green-700">Vassala IA</span>
+                                        </div>
+                                        <p className="text-sm whitespace-pre-wrap leading-relaxed">{msg.response}</p>
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
+                        {isLoading && (
+                           <div className="flex justify-end">
+                             <div className="bg-white p-3 rounded-xl shadow-md flex items-center gap-2">
+                               <Loader2 className="animate-spin text-green-600" size={16} />
+                               <span className="text-xs text-gray-500">جاري الكتابة...</span>
+                             </div>
+                           </div>
+                        )}
+                        <div ref={messagesEndRef} />
+                    </div>
+
+                    <div className="bg-white p-3 border-t shadow-lg shrink-0">
+                        <div className="flex items-center gap-2 max-w-4xl mx-auto">
+                            <input 
+                                type="file" 
+                                ref={fileInputRef} 
+                                className="hidden" 
+                                accept="image/*"
+                                onChange={handleImageUpload}
+                            />
+                            <button 
+                                onClick={() => fileInputRef.current?.click()}
+                                className="p-2 text-gray-500 hover:text-green-600 hover:bg-green-50 rounded-full transition"
+                            >
+                                <ImageIcon size={22} />
+                            </button>
+                            <div className="flex-1 relative">
+                                <textarea
+                                    value={inputText}
+                                    onChange={(e) => setInputText(e.target.value)}
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter' && !e.shiftKey) {
+                                            e.preventDefault();
+                                            handleSend();
+                                        }
+                                    }}
+                                    placeholder="اكتب سؤالك هنا..."
+                                    className="w-full p-3 pl-10 border border-gray-300 rounded-2xl focus:ring-2 focus:ring-green-500 focus:outline-none resize-none bg-gray-50 h-12 py-3 text-sm"
+                                    rows={1}
+                                />
+                            </div>
+                            <button onClick={toggleRecording} className={`p-2 rounded-full transition ${isRecording ? 'bg-red-500 text-white animate-pulse' : 'text-gray-500 hover:text-green-600 hover:bg-green-50'}`}>
+                                <Mic size={22} />
+                            </button>
+                            <button onClick={() => handleSend()} disabled={(!inputText.trim() && !isRecording) || isLoading} className="bg-green-600 hover:bg-green-700 text-white p-3 rounded-full shadow-md transition transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed">
+                                <Send size={20} />
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div className="bg-green-900 border-t border-green-800 shrink-0">
+                        <Footer />
+                    </div>
+                </div>
+            );
+        };
+
+        const App = () => {
+            const [user, setUser] = useState(null);
+            const [adminView, setAdminView] = useState('dashboard');
+            const [isAuthChecking, setIsAuthChecking] = useState(true);
+
+            // Handle Persistence logic
+            useEffect(() => {
+                const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+                    if (firebaseUser) {
+                        // Attempt to recover profile from local storage
+                        const savedProfile = localStorage.getItem('vassala_user_profile');
+                        if (savedProfile) {
+                            const parsedProfile = JSON.parse(savedProfile);
+                            // Ensure the profile matches the current UID to avoid mismatched data
+                            if (parsedProfile.uid === firebaseUser.uid) {
+                                setUser(parsedProfile);
+                            }
+                        }
+                    } else {
+                        setUser(null);
+                    }
+                    setIsAuthChecking(false);
+                });
+
+                return () => unsubscribe();
+            }, []);
+
+            const handleLogout = async () => {
+                try {
+                    await signOut(auth);
+                    localStorage.removeItem('vassala_user_profile');
+                    setUser(null);
+                } catch (error) {
+                    console.error("Error signing out:", error);
+                }
+            };
+            
+            if (isAuthChecking) {
+                return (
+                    <div className="h-screen w-full flex items-center justify-center bg-gray-100">
+                        <Loader2 className="animate-spin text-green-600" size={48} />
+                    </div>
+                );
+            }
+
+            if (!user) {
+                return <AuthScreen onLogin={setUser} />;
+            }
+
+            if (user.role === 'admin' && adminView === 'dashboard') {
+                return (
+                    <AdminDashboard 
+                        currentUser={user} 
+                        onLogout={handleLogout}
+                        onSwitchToChat={() => setAdminView('chat')}
+                    />
+                );
+            }
+
+            return (
+                <ChatInterface 
+                    currentUser={user} 
+                    onLogout={handleLogout}
+                    isAdmin={user.role === 'admin'}
+                    onSwitchToDashboard={() => setAdminView('dashboard')}
+                />
+            );
+        };
+
+        const root = createRoot(document.getElementById('root'));
+        root.render(<App />);
     </script>
 </body>
 </html>
