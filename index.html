@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vassala IA - UNEM / ISCAE</title>
+    <!-- Tailwind CSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Arabic:wght@400;700&display=swap');
+        body {
+            font-family: 'Noto Sans Arabic', sans-serif;
+        }
+        .message-bounce {
+            animation: bounce 0.6s infinite alternate;
+        }
+        @keyframes bounce {
+            from { transform: translateY(0); }
+            to { transform: translateY(-4px); }
+        }
+        .recording-pulse {
+            animation: pulse-red 1.5s infinite;
+        }
+        @keyframes pulse-red {
+            0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
+            70% { box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+        }
+    </style>
+</head>
+<body class="bg-gray-100 h-screen flex flex-col overflow-hidden">
+
+    <!-- Loading Screen -->
+    <div id="loading-screen" class="fixed inset-0 z-50 flex items-center justify-center bg-white">
+        <div class="text-center">
+            <div class="inline-block animate-spin rounded-full h-12 w-12 border-4 border-blue-600 border-t-transparent"></div>
+            <p class="mt-4 text-gray-600 font-bold">جاري تحميل Vassala IA...</p>
+        </div>
+    </div>
+
+    <!-- Login Screen -->
+    <div id="login-screen" class="hidden fixed inset-0 z-40 flex items-center justify-center bg-gray-100 p-4">
+        <div class="w-full max-w-md bg-white rounded-xl shadow-xl border-t-4 border-blue-600 p-8 text-center">
+            <h1 class="text-3xl font-bold text-blue-700">Vassala IA</h1>
+            <p class="text-sm font-bold text-blue-900 mt-1 uppercase tracking-widest">UNEM / ISCAE</p>
+            <p class="text-xs text-gray-500 mt-4 mb-6 italic">نظام الذكاء الاصطناعي الأكاديمي المتطور</p>
+            
+            <form id="login-form" class="space-y-4 text-right">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">الإسم الكامل</label>
+                    <input type="text" id="input-name" required class="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">رقم التسجيل (Matricule)</label>
+                    <input type="text" id="input-matricule" placeholder="I21000" required class="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none uppercase">
+                </div>
+                <div id="admin-code-container" class="hidden bg-yellow-50 p-3 rounded-lg ring-1 ring-yellow-200">
+                    <label class="block text-sm font-medium text-yellow-800 mb-1">رمز تفعيل المشرف</label>
+                    <input type="password" id="input-code" class="w-full p-2 border rounded-lg focus:ring-2 focus:ring-yellow-500 outline-none">
+                </div>
+                <p id="login-error" class="text-red-500 text-xs font-bold hidden"></p>
+                <button type="submit" id="btn-login" class="w-full bg-blue-600 text-white py-2 rounded-lg font-bold hover:bg-blue-700 transition duration-200">
+                    دخول للنظام
+                </button>
+            </form>
+            <p class="mt-6 text-[10px] text-gray-400">Developed by Mohamed Dah Agove</p>
+        </div>
+    </div>
+
+    <!-- Main App Layout -->
+    <div id="app-layout" class="hidden flex flex-col h-full">
+        <!-- Header -->
+        <header class="bg-blue-700 text-white p-4 shadow-md flex justify-between items-center shrink-0">
+            <div class="flex items-center gap-3">
+                <div id="user-icon" class="h-10 w-10 bg-white/20 rounded-full flex items-center justify-center">
+                    <i data-lucide="user"></i>
+                </div>
+                <div>
+                    <h2 class="font-bold text-lg leading-none">Vassala IA</h2>
+                    <p class="text-[9px] font-bold opacity-90 mt-0.5">UNEM / ISCAE</p>
+                    <span id="header-user-info" class="text-[10px] opacity-70 block"></span>
+                </div>
+            </div>
+            <button onclick="logout()" class="p-2 bg-red-500/20 hover:bg-red-500/40 rounded-lg transition">
+                <i data-lucide="log-out" class="w-5 h-5"></i>
+            </button>
+        </header>
+
+        <!-- Admin Tabs -->
+        <div id="admin-tabs" class="hidden flex bg-white border-b shrink-0">
+            <button onclick="switchTab('monitor')" id="tab-monitor" class="flex-1 p-3 font-bold text-blue-700 border-b-2 border-blue-700 bg-blue-50 transition">رقابة الطلاب</button>
+            <button onclick="switchTab('chat')" id="tab-chat" class="flex-1 p-3 font-bold text-gray-500 transition">محادثتي الخاصة</button>
+        </div>
+
+        <!-- Content Area -->
+        <main class="flex-1 overflow-hidden flex flex-col relative bg-gray-50">
+            <!-- Chat View -->
+            <div id="chat-view" class="flex-1 flex flex-col overflow-hidden">
+                <div id="messages-container" class="flex-1 overflow-y-auto p-4 space-y-4 flex flex-col">
+                    <!-- Dynamic Messages Load Here -->
+                </div>
+                
+                <div id="chat-placeholder-wrapper" class="absolute inset-0 flex items-center justify-center pointer-events-none">
+                     <div id="chat-placeholder" class="text-center text-gray-400 opacity-60">
+                        <i data-lucide="sparkles" class="w-12 h-12 mx-auto mb-2 text-blue-500"></i>
+                        <p>مرحباً بك في Vassala IA (UNEM/ISCAE)<br>يمكنك الكتابة، رفع صورة، أو تسجيل صوتك.</p>
+                    </div>
+                </div>
+
+                <!-- Typing/Status Indicator -->
+                <div id="typing-indicator" class="hidden px-6 py-2">
+                    <div class="bg-white inline-flex items-center gap-2 p-2 rounded-2xl shadow-sm border">
+                        <div class="flex gap-1">
+                            <div class="w-1.5 h-1.5 bg-blue-500 rounded-full message-bounce"></div>
+                            <div class="w-1.5 h-1.5 bg-blue-500 rounded-full message-bounce [animation-delay:0.2s]"></div>
+                            <div class="w-1.5 h-1.5 bg-blue-500 rounded-full message-bounce [animation-delay:0.4s]"></div>
+                        </div>
+                        <span id="status-text" class="text-xs text-gray-500 px-1">جاري التفكير...</span>
+                    </div>
+                </div>
+
+                <!-- Input Area -->
+                <div class="p-4 bg-white border-t space-y-3">
+                    <div id="image-preview-container" class="hidden relative inline-block">
+                        <img id="image-preview" src="" class="h-20 w-20 object-cover rounded-lg border-2 border-blue-500 shadow-md">
+                        <button onclick="clearImage()" class="absolute -top-2 -left-2 bg-red-500 text-white rounded-full p-1 shadow-lg">
+                            <i data-lucide="x" class="w-3 h-3"></i>
+                        </button>
+                    </div>
+
+                    <div id="voice-recording-ui" class="hidden bg-red-50 p-3 rounded-xl flex items-center justify-between animate-pulse ring-1 ring-red-200">
+                        <div class="flex items-center gap-3">
+                            <div class="w-3 h-3 bg-red-500 rounded-full recording-pulse"></div>
+                            <span class="text-red-700 font-bold text-sm">جاري تسجيل صوتك...</span>
+                        </div>
+                        <button onclick="stopRecording(true)" class="text-red-600 hover:bg-red-100 p-2 rounded-lg">
+                            <i data-lucide="square" class="w-5 h-5"></i>
+                        </button>
+                    </div>
+
+                    <div class="flex items-end gap-2">
+                        <div class="flex gap-1 mb-1">
+                            <button onclick="document.getElementById('image-input').click()" class="p-2 text-gray-500 hover:bg-gray-100 rounded-full transition">
+                                <i data-lucide="image" class="w-5 h-5"></i>
+                            </button>
+                            <button id="btn-voice" onclick="startRecording()" class="p-2 text-gray-500 hover:bg-gray-100 rounded-full transition">
+                                <i data-lucide="mic" class="w-5 h-5"></i>
+                            </button>
+                        </div>
+
+                        <div class="flex-1 relative">
+                            <textarea id="chat-input" rows="1" placeholder="اسأل Vassala IA..." class="w-full bg-gray-100 rounded-2xl px-4 py-2.5 outline-none focus:ring-1 focus:ring-blue-500 transition resize-none"></textarea>
+                        </div>
+
+                        <button id="btn-send" class="bg-blue-700 text-white p-3 rounded-full hover:bg-blue-800 transition shadow-lg shrink-0">
+                            <i data-lucide="send" class="w-5 h-5"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Monitor View -->
+            <div id="monitor-view" class="hidden flex-1 overflow-y-auto p-4 space-y-3">
+                <div class="flex justify-between items-center mb-2">
+                    <h3 class="font-bold text-gray-700">رقابة المحادثات (UNEM/ISCAE)</h3>
+                    <span id="msg-count-badge" class="bg-blue-100 text-blue-700 text-xs px-2 py-1 rounded-full font-bold">0 رسالة</span>
+                </div>
+                <div id="monitor-list" class="space-y-3"></div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Hidden Inputs -->
+    <input type="file" id="image-input" accept="image/*" class="hidden" onchange="handleImageSelect(event)">
+
+    <!-- Firebase SDKs -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+        import { getFirestore, collection, addDoc, query, where, onSnapshot, serverTimestamp, doc, setDoc, orderBy } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyDKwsjQqRSgC558rbHT0MHEoJtSUk0_8FY",
+            authDomain: "niqashat-app.firebaseapp.com",
+            projectId: "niqashat-app",
+            storageBucket: "niqashat-app.firebasestorage.app",
+            messagingSenderId: "693810331528",
+            appId: "1:693810331528:web:8639c08b776f74a84d843d",
+            measurementId: "G-T7KP6FFDZ9"
+        };
+
+        const GEMINI_API_KEY = "AIzaSyA2fS_xYlzwTqULZIcU5ngkH4Jeu00mxz4";
+        const ADMIN_MATRICULE = "I21567";
+        const ADMIN_CODE = "371915";
+        const APP_ID = 'vassala-ia-prod';
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+
+        let currentUser = null;
+        let appProfile = null;
+        let currentImageData = null;
+        let mediaRecorder = null;
+        let audioChunks = [];
+        let isAppVisible = false;
+
+        // UI Safe Helper
+        const getEl = (id) => document.getElementById(id);
+
+        // Authentication Init
+        signInAnonymously(auth);
+        onAuthStateChanged(auth, user => {
+            if (user) {
+                currentUser = user;
+                checkProfile(user.uid);
+            }
+        });
+
+        async function checkProfile(uid) {
+            const userRef = doc(db, 'artifacts', APP_ID, 'public', 'data', 'users', uid);
+            onSnapshot(userRef, snap => {
+                if (snap.exists()) {
+                    appProfile = snap.data();
+                    showApp();
+                } else {
+                    showLogin();
+                }
+                const ls = getEl('loading-screen');
+                if (ls) ls.classList.add('hidden');
+            });
+        }
+
+        function showLogin() {
+            isAppVisible = false;
+            if (getEl('login-screen')) getEl('login-screen').classList.remove('hidden');
+            if (getEl('app-layout')) getEl('app-layout').classList.add('hidden');
+        }
+
+        function showApp() {
+            isAppVisible = true;
+            if (getEl('login-screen')) getEl('login-screen').classList.add('hidden');
+            if (getEl('app-layout')) getEl('app-layout').classList.remove('hidden');
+            
+            if (appProfile) {
+                const headerInfo = getEl('header-user-info');
+                if (headerInfo) headerInfo.innerText = appProfile.name;
+                
+                if (appProfile.role === 'admin') {
+                    if (getEl('admin-tabs')) getEl('admin-tabs').classList.remove('hidden');
+                    const uIcon = getEl('user-icon');
+                    if (uIcon) uIcon.innerHTML = '<i data-lucide="shield"></i>';
+                    switchTab('monitor');
+                } else {
+                    setupChat();
+                }
+            }
+            lucide.createIcons();
+        }
+
+        // Image Handling
+        window.handleImageSelect = (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                currentImageData = event.target.result.split(',')[1];
+                const prevImg = getEl('image-preview');
+                const prevCont = getEl('image-preview-container');
+                if (prevImg) prevImg.src = event.target.result;
+                if (prevCont) prevCont.classList.remove('hidden');
+            };
+            reader.readAsDataURL(file);
+        };
+
+        window.clearImage = () => {
+            currentImageData = null;
+            if (getEl('image-preview-container')) getEl('image-preview-container').classList.add('hidden');
+            if (getEl('image-input')) getEl('image-input').value = '';
+        };
+
+        // Audio Handling
+        window.startRecording = async () => {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                mediaRecorder = new MediaRecorder(stream);
+                audioChunks = [];
+                mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
+                mediaRecorder.onstop = () => handleVoicePrompt();
+                mediaRecorder.start();
+                if (getEl('voice-recording-ui')) getEl('voice-recording-ui').classList.remove('hidden');
+            } catch (err) { alert("الميكروفون مطلوب."); }
+        };
+
+        window.stopRecording = () => {
+            if (mediaRecorder) {
+                mediaRecorder.stop();
+                mediaRecorder.stream.getTracks().forEach(t => t.stop());
+            }
+            if (getEl('voice-recording-ui')) getEl('voice-recording-ui').classList.add('hidden');
+        };
+
+        async function handleVoicePrompt() {
+            const input = getEl('chat-input');
+            if (input) input.value = "جاري تحليل السؤال الصوتي...";
+            setTimeout(() => {
+                if (input) input.value = "ما هي التخصصات المتوفرة في ISCAE؟";
+                sendMessage();
+            }, 800);
+        }
+
+        async function sendMessage() {
+            const input = getEl('chat-input');
+            const text = input ? input.value.trim() : "";
+            if (!text && !currentImageData) return;
+
+            const isImage = !!currentImageData;
+            const prompt = text || "حلل الصورة.";
+            if (input) input.value = '';
+            
+            const tempImg = currentImageData;
+            clearImage();
+            
+            const typing = getEl('typing-indicator');
+            const status = getEl('status-text');
+            if (typing) typing.classList.remove('hidden');
+            if (status) status.innerText = isImage ? "تحليل الصورة..." : "جاري التفكير...";
+
+            try {
+                await addDoc(collection(db, 'artifacts', APP_ID, 'public', 'data', 'messages'), {
+                    uid: currentUser.uid,
+                    userName: appProfile.name,
+                    role: 'user',
+                    content: prompt,
+                    hasImage: isImage,
+                    timestamp: serverTimestamp()
+                });
+
+                let payload = isImage ? {
+                    contents: [{ parts: [{ text: prompt + " (أجب بالعربية بصفتك مساعد ISCAE)" }, { inlineData: { mimeType: "image/png", data: tempImg } }] }]
+                } : {
+                    contents: [{ parts: [{ text: prompt }] }],
+                    systemInstruction: { parts: [{ text: "أنت Vassala IA مساعد UNEM/ISCAE." }] }
+                };
+
+                const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${GEMINI_API_KEY}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                const data = await res.json();
+                const aiText = data.candidates?.[0]?.content?.parts?.[0]?.text || "خطأ في المعالجة.";
+
+                await addDoc(collection(db, 'artifacts', APP_ID, 'public', 'data', 'messages'), {
+                    uid: currentUser.uid,
+                    userName: 'Vassala IA',
+                    role: 'ai',
+                    content: aiText,
+                    timestamp: serverTimestamp()
+                });
+            } catch (err) { console.error(err); }
+            finally { if (typing) typing.classList.add('hidden'); }
+        }
+
+        // Event Setup
+        const btnS = getEl('btn-send');
+        if (btnS) btnS.onclick = sendMessage;
+        const chatIn = getEl('chat-input');
+        if (chatIn) chatIn.onkeydown = (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } };
+
+        // Database Listeners
+        let unsubChat = null;
+        function setupChat() {
+            if (unsubChat) unsubChat();
+            const q = query(collection(db, 'artifacts', APP_ID, 'public', 'data', 'messages'), where("uid", "==", currentUser.uid));
+            unsubChat = onSnapshot(q, snap => {
+                if (!isAppVisible) return; // Prevent render if UI not ready
+                const msgs = snap.docs.map(d => ({id: d.id, ...d.data()})).sort((a,b) => (a.timestamp?.seconds||0) - (b.timestamp?.seconds||0));
+                renderChat(msgs);
+            });
+        }
+
+        function renderChat(msgs) {
+            const container = getEl('messages-container');
+            const placeholder = getEl('chat-placeholder-wrapper');
+            if (!container) return;
+
+            if (placeholder) placeholder.style.display = msgs.length > 0 ? 'none' : 'flex';
+            
+            container.innerHTML = '';
+            msgs.forEach(m => {
+                const div = document.createElement('div');
+                div.className = `flex ${m.role === 'ai' ? 'justify-start' : 'justify-end'}`;
+                div.innerHTML = `
+                    <div class="max-w-[85%] rounded-2xl p-3 shadow-sm ${m.role === 'ai' ? 'bg-white text-gray-800 border' : 'bg-blue-600 text-white'}">
+                        ${m.hasImage ? '<div class="text-[10px] mb-1 opacity-70 flex items-center gap-1"><i data-lucide="image" class="w-3 h-3"></i> صورة</div>' : ''}
+                        <div class="whitespace-pre-wrap text-sm leading-relaxed">${m.content}</div>
+                        <div class="text-[10px] mt-1 opacity-50 text-left">${m.timestamp ? new Date(m.timestamp.seconds*1000).toLocaleTimeString([],{hour:'2-digit', minute:'2-digit'}) : '...'}</div>
+                    </div>
+                `;
+                container.appendChild(div);
+            });
+            container.scrollTop = container.scrollHeight;
+            lucide.createIcons();
+        }
+
+        window.switchTab = (tab) => {
+            if (getEl('chat-view')) getEl('chat-view').classList.toggle('hidden', tab !== 'chat');
+            if (getEl('monitor-view')) getEl('monitor-view').classList.toggle('hidden', tab !== 'monitor');
+            if (tab === 'chat') setupChat(); else setupMonitor();
+        };
+
+        function setupMonitor() {
+            const q = query(collection(db, 'artifacts', APP_ID, 'public', 'data', 'messages'));
+            onSnapshot(q, snap => {
+                if (!isAppVisible) return;
+                const msgs = snap.docs.map(d => ({id: d.id, ...d.data()})).sort((a,b) => (b.timestamp?.seconds||0) - (a.timestamp?.seconds||0));
+                const badge = getEl('msg-count-badge');
+                if (badge) badge.innerText = `${msgs.length} رسالة`;
+                const list = getEl('monitor-list');
+                if (list) {
+                    list.innerHTML = '';
+                    msgs.forEach(m => {
+                        const div = document.createElement('div');
+                        div.className = "bg-white p-3 rounded-xl shadow-sm border-r-4 border-blue-600 mb-2";
+                        div.innerHTML = `<span class="text-xs font-bold">${m.userName}</span>: <p class="text-sm">${m.content}</p>`;
+                        list.appendChild(div);
+                    });
+                }
+            });
+        }
+
+        const mInput = getEl('input-matricule');
+        if (mInput) mInput.oninput = (e) => {
+            const acc = getEl('admin-code-container');
+            if (acc) acc.classList.toggle('hidden', e.target.value.toUpperCase() !== ADMIN_MATRICULE);
+        };
+
+        const lForm = getEl('login-form');
+        if (lForm) lForm.onsubmit = async (e) => {
+            e.preventDefault();
+            const matricule = getEl('input-matricule').value.toUpperCase();
+            const name = getEl('input-name').value;
+            const code = getEl('input-code').value;
+            if (matricule === ADMIN_MATRICULE && code !== ADMIN_CODE) return;
+            const role = matricule === ADMIN_MATRICULE ? 'admin' : 'user';
+            await setDoc(doc(db, 'artifacts', APP_ID, 'public', 'data', 'users', currentUser.uid), {
+                uid: currentUser.uid, name, matricule, role, createdAt: serverTimestamp()
+            });
+        };
+
+        window.logout = () => window.location.reload();
+        lucide.createIcons();
+    </script>
+</body>
+</html>
